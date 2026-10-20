@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, ArrowRight, MapPin } from 'lucide-react';
 import { createCalendar, beijingToday, monthCells, addDays, MIN, MAX, type CalendarData, type DayInfo } from '../lib/calendar/calendar.mjs';
 import { weatherDateKind } from '../lib/date-weather';
 import type { Location } from '../lib/weather';
+import { WeatherSelect } from './weather-select';
 
 const week=['日','一','二','三','四','五','六'];
 /** 保留原日历的农历、节气与休班算法；只把视图和联动接入天气应用。 */
@@ -33,7 +34,7 @@ export function CalendarView({selected,onSelect,onWeather,place,now}:{selected:s
  const weatherNote=!place?'选择城市后，查询这一天的天气':availability==='history'?'历史再分析 · 过去 10 天':availability==='forecast'?'每日预报 · 含今天共 10 天':availability==='past'?'超出历史查询范围，可查看查询说明':'预报尚未发布，可查看查询说明';
  return <section className="qingli" aria-label="中国日历">
   <div className="calendar-intro"><div><span className="hero-eyebrow">把日子与天气，放在一起</span><h1>日历</h1></div><p>农历 · 节气 · 休假安排<span>日历以北京时间标记今天</span></p></div>
-  <div className="month-toolbar"><div><div className="month-heading"><select aria-label="选择年份" value={year} onChange={e=>moveMonth(Number(e.target.value),month)}>{Array.from({length:200},(_,i)=><option key={i} value={1901+i}>{1901+i}年</option>)}</select><select aria-label="选择月份" value={month} onChange={e=>moveMonth(year,Number(e.target.value))}>{Array.from({length:12},(_,i)=><option key={i} value={i+1}>{i+1}月</option>)}</select></div><p className="month-subtitle">农历{lunarNames.join(' · ')}</p></div><div className="calendar-navigation"><button className="secondary-button" onClick={()=>select(today)}>今天</button><button className="icon-button" aria-label="上个月" disabled={selected.startsWith('1901-01')} onClick={()=>moveMonth(year,month-1)}><ChevronLeft size={19}/></button><button className="icon-button" aria-label="下个月" disabled={selected.startsWith('2100-12')} onClick={()=>moveMonth(year,month+1)}><ChevronRight size={19}/></button></div></div>
+  <div className="month-toolbar"><div><div className="month-heading"><WeatherSelect label="选择年份" value={String(year)} onChange={value=>moveMonth(Number(value),month)} options={Array.from({length:200},(_,i)=>({value:String(1901+i),label:`${1901+i}年`}))}/><WeatherSelect label="选择月份" value={String(month)} onChange={value=>moveMonth(year,Number(value))} options={Array.from({length:12},(_,i)=>({value:String(i+1),label:`${i+1}月`}))}/></div><p className="month-subtitle">农历{lunarNames.join(' · ')}</p></div><div className="calendar-navigation"><button className="secondary-button" onClick={()=>select(today)}>今天</button><button className="icon-button" aria-label="上个月" disabled={selected.startsWith('1901-01')} onClick={()=>moveMonth(year,month-1)}><ChevronLeft size={19}/></button><button className="icon-button" aria-label="下个月" disabled={selected.startsWith('2100-12')} onClick={()=>moveMonth(year,month+1)}><ChevronRight size={19}/></button></div></div>
   <div className="glass calendar-layout" aria-busy={!calendar&&!error}>
    <div className="weekday-row" aria-hidden="true">{['一','二','三','四','五','六','日'].map(w=><span key={w}>周{w}</span>)}</div>
    <div className="calendar-grid" role="grid" aria-label={`${year}年${month}月日历，方向键选择日期`} aria-colcount={7} ref={grid}>

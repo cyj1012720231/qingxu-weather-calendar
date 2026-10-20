@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from './ui/dialog';
 import { Sun, Moon, CloudSun, CloudMoon, Cloud, CloudRain, CloudLightning, CloudSnow, CloudFog, CircleHelp, X, ChevronRight, Droplets, Wind, Thermometer, Eye, Gauge, Sunrise, Sunset, CalendarDays, Clock, CloudOff, RefreshCw, ArrowUpRight } from 'lucide-react';
 import { type WeatherPoint, type Preferences, type ApiResult, type Location, temperature, speed, tempText, windText, measureText, visibilityText, percent, finite, numberText, localTime, localDate, dayLabel, weatherKind, isNight, temperatureRange, compassNames, moonNames, fieldNames } from '../lib/weather';
 
@@ -9,9 +10,10 @@ export function WeatherIcon({code,night=false,size=30}:{code?:string;night?:bool
 }
 export function SkyArt(){return <svg viewBox="0 0 300 190" className="sky-art" aria-hidden="true"><defs><radialGradient id="sun-fill"><stop stopColor="#fff6c3"/><stop offset="1" stopColor="#ffd478"/></radialGradient><linearGradient id="cloud-fill" x2=".2" y2="1"><stop stopColor="#fff"/><stop offset="1" stopColor="#b8d4ed"/></linearGradient><filter id="art-glow"><feGaussianBlur stdDeviation="14"/></filter><filter id="cloud-shadow" x="-30%" y="-40%" width="180%" height="200%"><feDropShadow dx="0" dy="12" stdDeviation="10" floodColor="#1b416f" floodOpacity=".2"/></filter></defs><circle cx="181" cy="64" r="50" fill="#ffe5a1" opacity=".2" filter="url(#art-glow)"/><circle cx="181" cy="64" r="35" fill="url(#sun-fill)"/><path d="M73 149C34 149 29 100 67 94C72 61 119 54 138 80C169 66 201 89 197 115C229 113 238 149 207 155H74Z" fill="url(#cloud-fill)" filter="url(#cloud-shadow)"/><path d="M209 155H252C274 155 271 128 251 129C247 109 219 108 212 127C190 120 185 150 209 155Z" fill="#e2effa" opacity=".8"/></svg>;}
 export function Modal({title,subtitle,onClose,children,wide=false}:{title:string;subtitle?:string;onClose:()=>void;children:ReactNode;wide?:boolean}){
- const ref=useRef<HTMLDialogElement>(null),id=useId();
- useEffect(()=>{const dialog=ref.current;const previous=document.activeElement as HTMLElement;dialog?.showModal();const scroll=document.body.style.overflow;document.body.style.overflow='hidden';return()=>{dialog?.close();document.body.style.overflow=scroll;previous?.focus();};},[]);
- return <dialog ref={ref} className={`modal ${wide?'modal-wide':''}`} aria-labelledby={id} onCancel={onClose} onClick={e=>{if(e.target===e.currentTarget){const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)onClose();}}}><div className="modal-header"><div><h2 id={id}>{title}</h2>{subtitle&&<p>{subtitle}</p>}</div><button className="icon-button" onClick={onClose} aria-label="关闭"><X size={22}/></button></div>{children}</dialog>;
+ // 使用同一组件库的弹层，避免原生 dialog 顶层遮挡下拉菜单的 Portal。
+ // 在子输入框自动聚焦前记住入口，关闭后可继续用键盘操作原页面。
+ const previous=useRef<HTMLElement|null>(typeof document==='undefined'?null:document.activeElement as HTMLElement);
+ return <Dialog open onOpenChange={open=>{if(!open)onClose();}}><DialogContent className={`modal ${wide?'modal-wide':''}`} showCloseButton={false} onCloseAutoFocus={event=>{event.preventDefault();previous.current?.focus();}}><div className="modal-header"><div><DialogTitle asChild><h2>{title}</h2></DialogTitle>{subtitle&&<DialogDescription asChild><p>{subtitle}</p></DialogDescription>}</div><button className="icon-button" onClick={onClose} aria-label="关闭"><X size={22}/></button></div>{children}</DialogContent></Dialog>;
 }
 export function Empty({loading=false,message='暂无天气数据',onRetry}:{loading?:boolean;message?:string;onRetry?:()=>void}){
  return <div className={`empty-state ${loading?'is-loading':''}`} role="status">{loading?<><div className="skeleton skeleton-wide"/><div className="skeleton"/><span>正在感知此刻的天气…</span></>:<><CloudOff size={27} strokeWidth={1.3}/><p>{message}</p>{onRetry&&<button className="text-button" onClick={onRetry}><RefreshCw size={15}/>重新加载</button>}</>}</div>;

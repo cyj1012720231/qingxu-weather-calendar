@@ -16,6 +16,14 @@ const ui=await import(pathToFileURL(file).href);
 const pageOutput=await build({entryPoints:['app/page.tsx'],bundle:true,platform:'node',format:'esm',packages:'external',write:false,jsx:'automatic'});
 const pageFile=path.join(testDir,'page.mjs');await writeFile(pageFile,pageOutput.outputFiles[0].text);
 const {default:WeatherApp}=await import(pathToFileURL(pageFile).href);
+const calendarOutput=await build({entryPoints:['components/calendar-view.tsx'],bundle:true,platform:'node',format:'esm',packages:'external',write:false,jsx:'automatic'});
+const calendarFile=path.join(testDir,'calendar.mjs');await writeFile(calendarFile,calendarOutput.outputFiles[0].text);
+const {CalendarView}=await import(pathToFileURL(calendarFile).href);
+test('年月选择使用可访问的组件触发器，并显示当前年月',()=>{
+ const html=renderToStaticMarkup(createElement(CalendarView,{selected:'2026-10-31',now:'2026-10-20T00:00:00Z',place:null,onSelect:()=>{},onWeather:()=>{}}));
+ assert.equal((html.match(/role="combobox"/g)??[]).length,2);
+ for(const text of ['选择年份','选择月份','2026年','10月'])assert.ok(html.includes(text),text);
+});
 test('首屏不根据浏览器设备能力改变HTML，避免水合不一致',()=>{
  const original=Object.getOwnPropertyDescriptor(globalThis,'navigator');
  try{
