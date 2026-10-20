@@ -1,2 +1,88 @@
-# qingxu-weather-calendar
-晴序：天气与中国日历，支持农历节气、休假安排和按日期查询天气。
+# 晴序 · 天气与日历
+
+基于 Sites 官方 Vinext / React / TypeScript 模板的天气 Web 应用，服务端运行于 Cloudflare Workers。视觉为原创天空渐变、玻璃卡片与手绘 SVG 天气插画；没有使用苹果专有素材。
+
+## 当前状态
+
+已将两个 Sites 项目的远端最新代码合并：天气界面、城市设置和高级预报保留，新增中国日历、农历节气、官方休班与日期天气查询。天气凭据沿用原 Sites 服务端环境；新部署环境需自行配置。浏览器和 GitHub 中不包含凭据。
+
+顶部切换“天气 / 日历”；选择日期后点击“查看当天天气”，返回时保留日期和月份。查询支持含今天共 10 日预报与过去 10 日历史再分析；超出范围明确说明，不用当天数据替代。日历今天按北京时间，天气按所选城市日期。
+
+## 服务端配置
+
+在当前 Site 的运行时环境变量中设置下列名称；至少私钥必须标记 Secret，建议全部标记 Secret。不要把值放进聊天、前端代码、public、NEXT_PUBLIC_*、VITE_* 或 .openai/hosting.json。
+
+| 名称 | 来源 |
+| --- | --- |
+| QWEATHER_API_HOST | 和风控制台分配的专属 Host，仅主机名，如控制台显示的 `*.qweatherapi.com` 地址 |
+| QWEATHER_KID | JWT 凭据 ID |
+| QWEATHER_ISS | 和风开发者 ID |
+| QWEATHER_SUB | 和风项目 ID |
+| QWEATHER_PRIVATE_KEY | 已在和风登记对应公钥的 Ed25519 PKCS#8 私钥，支持真正换行或 `\n` |
+
+保存或修改 Sites 环境变量后重新部署，使配置进入线上运行环境。页面“连接说明 → 重新检查连接”会显示加载状态、检查时间和结果，并通过实时天气接口验证鉴权与权限（15秒内合并重复检查）。缺少配置、私钥格式错误、鉴权失败、权限不足及网络错误会在弹窗内明确显示，不返回任何密钥值。配置完成后选择城市，验证实时、10天、24小时，再到“详细天气”请求240小时。不要只凭“配置就绪”判断已经联调成功。
+
+本地开发可使用被忽略的 `.dev.vars` 或 `.env`；模板已安装的 Cloudflare Vite 插件支持这些来源。真实值不要提交，也不要将本地凭据文件放入部署包。
+
+## 本地运行与验证
+
+```sh
+npm ci
+npm run dev -- --host 127.0.0.1 --port 4173
+npm test
+npm run typecheck
+npm run build
+```
+
+需要 Node.js >=22.13；保留模板 `sites()` 与 Cloudflare 构建集成。Sites 发布必须使用插件的 build-site/site-workflow helper，不能把源码目录直接作为部署归档。
+
+## 数据协议
+
+- `GET /weather/v1/current/{latitude}/{longitude}`
+- `GET /weather/v1/daily/{latitude}/{longitude}?days=1..10`
+- `GET /weather/v1/hourly/{latitude}/{longitude}?hours=1..240`
+- `GET /v7/historical/weather?location=LocationID&date=yyyyMMdd&lang=zh&unit=m`（过去十天，不含今天）
+- `GET /geo/v2/city/lookup?location=名称、LocationID或经度,纬度`
+
+天气路径将纬度、经度保留两位，固定 `localTime=true&lang=zh`。新版值对象按 `{value,unit}` 处理，比例字段 `[0,1]` 转百分比。当前和预报只读取新版字段；历史接口单独适配旧版字符串字段，保留缺失值与数据来源。位置时区来自 GeoAPI；日出日落用于昼夜判断，资料不足时保持中性背景。页面时间均按地点时区显示；“获取于”不是气象观测时间。每日列表的降水百分比是白天/夜间两个时段中较高者，悬浮说明与详情保留两者。
+
+## 功能
+
+- 当前位置、中文/英文模糊搜索、键盘建议列表。
+- 官方公开位置 CSV 的3577个地点，34个省级分组，支持内地、港澳台；区县选择后由 GeoAPI 按 ID 在线确认。
+- 常用城市添加、删除、上下移动排序、实时温度、当前位置入口、最后位置与偏好本地保存。
+- 当前天气、默认24小时和10日预报、11类指标卡片；温度/降水概率/风速趋势图与10日最高最低温曲线。
+- 详细天气支持1–10天和1–240小时、图表/列表/完整中文字段/原始JSON，保留API元信息和归属声明。
+- 摄氏/华氏、km/h/m/s/mph、自动定位、动画、深浅色偏好；减少动态效果、低核设备和省流模式降级。
+- 骨架屏、无数据、网络错误、配置缺失、鉴权、配额、限流与重试状态。
+
+## 安全与性能
+
+私钥只在 Worker 导入；使用 Ed25519 JWT，包含官方当前规定的 kid、iss、sub、iat、exp，15分钟有效期并预留30秒时钟偏差。请求路径、参数、Host白名单固定，禁重定向，不接受任意URL。
+
+天气缓存为每个 Worker isolate 内最多256条，实时5分钟、预报30分钟；6小时内同地点同范围缓存可在失败时标记为旧数据返回。浏览器仅当前会话保留最多30条真实天气响应以支持网络失败回退。GeoAPI只合并进行中的请求，不建立响应缓存。官方可下载CSV用于地区选择，不以批量Geo查询建立目录。
+
+同地点请求合并；城市切换取消请求并检查取消状态。服务端每个访问标识每分钟60次的内存限流与错误冷却会在 Worker 重启时重置；这不是跨地区强一致的配额系统。本次保留原天气站点的公开访问范围；GitHub 仓库为私密。大量访客场景需另行配置平台级访问和额度限制。
+
+## 日历来源与验证
+
+保留原日历 1901—2100 年的 73,049 天独立官方回归样本，以及 2007—2026 年休班资料。来源与许可见 `docs/calendar-sources.md`。`npm test` 同时运行日历全量回归、天气服务测试和日期联动测试。
+
+## 核心文件
+
+- `components/calendar-view.tsx`、`components/date-weather.tsx`：月历、键盘交互与指定日期天气。
+- `lib/calendar/calendar.mjs`、`public/calendar/data.json`：原日历核心算法与官方数据。
+- `lib/date-weather.ts`：城市日期范围、精准匹配与历史响应转换。
+
+- `app/page.tsx`：首页、位置、设置、收藏与高级视图。
+- `components/weather-ui.tsx`：图标、卡片、预报列表、中文字段与图表。
+- `app/globals.css`：多端布局与天气动态效果。
+- `lib/weather.ts`：数据类型、真实单位换算、时区、昼夜与范围计算。
+- `lib/qweather-server.ts`：固定路径、安全签名、缓存、限流、错误处理。
+- `app/api/{weather,locations,status}/route.ts`：浏览器调用的本站接口。
+- `public/locations.json`、`docs/location-source.md`：官方位置目录与溯源。
+- `tests/`：合成数据仅用于测试，从未作为网站天气展示。
+
+## 核对的官方资料
+
+核对日期：2026-10-20。包括实时、每日、小时、Geo城市搜索、身份认证、API Host、元数据、错误码、天气现象、注明来源；链接见 `docs/api-contract.md`。详细测试范围及缺口见 `docs/verification.md`。
