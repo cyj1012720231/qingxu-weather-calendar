@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import type { ApiResult, WeatherPoint } from './weather.ts';
 import { weatherDateKind, normalizeHistory } from './date-weather.ts';
 export type WeatherEnv={QWEATHER_API_HOST?:string;QWEATHER_KID?:string;QWEATHER_ISS?:string;QWEATHER_SUB?:string;QWEATHER_PRIVATE_KEY?:string};
@@ -63,7 +64,7 @@ function upstreamError(status:number,type=''){
  return new ApiError('UPSTREAM_ERROR','天气服务暂时不可用，请稍后重试。',502);
 }
 type Entry={result:ApiResult;expires:number;staleUntil:number};
-/** 有界内存缓存及进行中请求合并；Worker重启后缓存自然清空。 */
+/** 有界内存缓存及进行中请求合并；Node 进程重启后缓存自然清空。 */
 export const runtimeFetch:typeof fetch=(input,init)=>fetch(input,init);
 export function createClient(env:WeatherEnv,fetcher:typeof fetch=runtimeFetch,clock=Date.now){
  const cache=new Map<string,Entry>(),pending=new Map<string,Promise<ApiResult>>();
@@ -75,8 +76,7 @@ export function createClient(env:WeatherEnv,fetcher:typeof fetch=runtimeFetch,cl
    if(now<cooldown)throw cooldownError;
    const restriction=restricted.get(path);if(restriction&&now<restriction.until)throw restriction.error;
    if(!token||now>=tokenExpires){token=await signJwt(env,now);tokenExpires=now+840000;}
-   // Workers supports manual/follow, but rejects redirect:'error' before I/O.
-   // Handle redirects ourselves so JWTs are never forwarded to another host.
+   // 手动拒绝所有重定向，防止 JWT 被转发到其他主机。
    const response=await fetcher(apiHost(env.QWEATHER_API_HOST!)+path,{headers:{Authorization:`Bearer ${token}`,Accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(12000)});
    if(response.status>=300&&response.status<400)throw new ApiError('UPSTREAM_REDIRECT','天气服务返回了异常跳转，请检查专属 API Host。',502);
    const bodyText=await response.text();if(bodyText.length>2_000_000)throw new ApiError('INVALID_RESPONSE','天气数据响应异常。',502);
@@ -108,7 +108,7 @@ export function createClient(env:WeatherEnv,fetcher:typeof fetch=runtimeFetch,cl
   }catch(e){
    // 失败只回退同一地点、同一范围的真实缓存，并明确标记过期。
    if(!(e instanceof ApiError)){
-    // Operational diagnostics only; redact the complete environment and token.
+    // 诊断日志过滤环境变量与 Token，避免网络异常带出服务端凭据。
     let diagnostic=e instanceof Error?`${e.name}: ${e.message}`:'Unknown upstream failure';
     for(const value of [...Object.values(env),token])if(value)diagnostic=diagnostic.split(value).join('[redacted]');
     diagnostic=diagnostic.replace(/https?:\/\/[^\s]+/g,'[upstream URL]');
@@ -128,6 +128,11 @@ export function createClient(env:WeatherEnv,fetcher:typeof fetch=runtimeFetch,cl
  }};
 }
 const requests=new Map<string,{count:number;reset:number}>();
+/** 只有入口代理覆盖 X-Real-IP 且应用端口不对外开放时，才可开启 TRUST_PROXY。 */
+export function requestRateLimitKey(headers:Headers,trustProxy=process.env.TRUST_PROXY==='true'){
+ const ip=trustProxy?headers.get('x-real-ip')?.trim():undefined;
+ return ip&&isIP(ip)?`ip:${ip}`:'shared';
+}
 export function rateLimit(key:string,now=Date.now()){
  let b=requests.get(key);if(!b||b.reset<=now){if(requests.size>=2000)requests.delete(requests.keys().next().value!);b={count:0,reset:now+60000};requests.set(key,b);}
  if(++b.count>60)throw new ApiError('RATE_LIMIT','操作太快了，请稍等一分钟再试。',429,60);

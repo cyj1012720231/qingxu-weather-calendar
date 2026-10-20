@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createWeatherRuntime, resolveWeatherEnvironment, withWeatherEnvironment } from '../lib/weather-runtime.ts';
+import { createWeatherRuntime, resolveWeatherEnvironment } from '../lib/weather-runtime.ts';
 
 async function credentials(){
  const keys=await crypto.subtle.generateKey('Ed25519',true,['sign','verify']);
@@ -8,13 +8,13 @@ async function credentials(){
 }
 const path='/weather/v1/current/39.92/116.41?localTime=true&lang=zh';
 
-test('请求环境覆盖模块环境，并发请求间不混用配置',async()=>{
- const fallback={QWEATHER_KID:'fallback'};
- const result=await Promise.all(['first','second'].map(kid=>withWeatherEnvironment({QWEATHER_KID:kid},async()=>{
-  await Promise.resolve();return resolveWeatherEnvironment(fallback).QWEATHER_KID;
- })));
- assert.deepEqual(result,['first','second']);
- assert.equal(resolveWeatherEnvironment(fallback).QWEATHER_KID,'fallback');
+test('Node服务读取运行时环境变量、裁剪空白且只提取天气配置',()=>{
+ const original=process.env.QWEATHER_KID;
+ try{
+  process.env.QWEATHER_KID='  runtime-kid  ';
+  assert.equal(resolveWeatherEnvironment().QWEATHER_KID,'runtime-kid');
+  assert.deepEqual(Object.keys(resolveWeatherEnvironment()).sort(),['QWEATHER_API_HOST','QWEATHER_ISS','QWEATHER_KID','QWEATHER_PRIVATE_KEY','QWEATHER_SUB']);
+ }finally{if(original===undefined)delete process.env.QWEATHER_KID;else process.env.QWEATHER_KID=original;}
 });
 
 test('缺失配置不请求上游，运行中补齐或替换凭据后自动恢复',async()=>{

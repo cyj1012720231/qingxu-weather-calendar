@@ -2,6 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as api from '../lib/qweather-server.ts';
 
+test('限流默认忽略来路不明的代理头与旧平台身份，可信代理仅接受合法单个IP',()=>{
+ const headers=new Headers({'x-real-ip':'203.0.113.10','x-forwarded-for':'198.51.100.20','cf-connecting-ip':'192.0.2.1','oai-authenticated-user-id':'fake-user'});
+ assert.equal(api.requestRateLimitKey(headers,false),'shared');
+ assert.equal(api.requestRateLimitKey(headers,true),'ip:203.0.113.10');
+ headers.set('x-real-ip','2001:db8::1');
+ assert.equal(api.requestRateLimitKey(headers,true),'ip:2001:db8::1');
+ for(const invalid of ['not-an-ip','203.0.113.10, 198.51.100.20','']){
+  headers.set('x-real-ip',invalid);assert.equal(api.requestRateLimitKey(headers,true),'shared');
+ }
+});
+
 test('固定v1路径使用纬度在前与两位精度，预报长度边界严格校验',()=>{
  assert.equal(api.weatherPath(new URLSearchParams('kind=hourly&lat=39.91755&lon=116.41876&hours=240')),'/weather/v1/hourly/39.92/116.42?localTime=true&lang=zh&hours=240');
  assert.equal(api.weatherPath(new URLSearchParams('kind=daily&lat=0&lon=0&days=10')),'/weather/v1/daily/0.00/0.00?localTime=true&lang=zh&days=10');

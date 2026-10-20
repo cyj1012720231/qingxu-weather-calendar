@@ -1,5 +1,7 @@
 # 验证记录与剩余限制
 
+> 历史记录：以下为原 Sites 阶段的计划或验证结果。当前自托管部署请以 [deployment.md](deployment.md) 与 [self-hosting-verification.md](self-hosting-verification.md) 为准。
+
 日期：2026-10-20。当前新站未配置和风凭据。
 
 ## 已完成

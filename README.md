@@ -1,40 +1,36 @@
 # 晴序 · 天气与日历
 
-基于 Sites 官方 Vinext / React / TypeScript 模板的天气 Web 应用，服务端运行于 Cloudflare Workers。视觉为原创天空渐变、玻璃卡片与手绘 SVG 天气插画；没有使用苹果专有素材。
+基于 Next.js / React / TypeScript 的天气与日历应用，前端和服务端均可用 Docker Compose 部署到自己的服务器，服务端运行于 Node.js，不依赖 Cloudflare Workers。视觉为原创天空渐变、玻璃卡片与手绘 SVG 天气插画；没有使用苹果专有素材。
 
 ## 当前状态
 
-已将两个 Sites 项目的远端最新代码合并：天气界面、城市设置和高级预报保留，新增中国日历、农历节气、官方休班与日期天气查询。天气凭据沿用原 Sites 服务端环境；新部署环境需自行配置。浏览器和 GitHub 中不包含凭据。
+已将两个 Sites 项目的远端最新代码合并：天气界面、城市设置和高级预报保留，新增中国日历、农历节气、官方休班与日期天气查询。GitHub 当前版本已迁移为自托管架构；需要在自己的服务器配置天气凭据。浏览器、镜像和 GitHub 中不包含真实凭据。
 
 顶部切换“天气 / 日历”；选择日期后点击“查看当天天气”，返回时保留日期和月份。查询支持含今天共 10 日预报与过去 10 日历史再分析；超出范围明确说明，不用当天数据替代。日历今天按北京时间，天气按所选城市日期。
 
-## 服务端配置
+## 部署与运行
 
-在当前 Site 的运行时环境变量中设置下列名称；至少私钥必须标记 Secret，建议全部标记 Secret。不要把值放进聊天、前端代码、public、NEXT_PUBLIC_*、VITE_* 或 .openai/hosting.json。
+完整步骤、环境变量、HTTPS、更新和排查见 [服务器部署文档](docs/deployment.md)。
 
-| 名称 | 来源 |
-| --- | --- |
-| QWEATHER_API_HOST | 和风控制台分配的专属 Host，仅主机名，如控制台显示的 `*.qweatherapi.com` 地址 |
-| QWEATHER_KID | JWT 凭据 ID |
-| QWEATHER_ISS | 和风开发者 ID |
-| QWEATHER_SUB | 和风项目 ID |
-| QWEATHER_PRIVATE_KEY | 已在和风登记对应公钥的 Ed25519 PKCS#8 私钥，支持真正换行或 `\n` |
+```sh
+cp .env.example .env
+# 在服务器编辑 .env，填写和风天气配置
+chmod 600 .env
+docker compose up -d --build
+```
 
-保存或修改 Sites 环境变量后重新部署，使配置进入线上运行环境。页面“连接说明 → 重新检查连接”会显示加载状态、检查时间和结果，并通过实时天气接口验证鉴权与权限（15秒内合并重复检查）。缺少配置、私钥格式错误、鉴权失败、权限不足及网络错误会在弹窗内明确显示，不返回任何密钥值。配置完成后选择城市，验证实时、10天、24小时，再到“详细天气”请求240小时。不要只凭“配置就绪”判断已经联调成功。
+默认访问 `http://服务器IP:8080`。Nginx 接收请求，Node.js 在内部处理页面与所有 API；不需要单独安装 Workers、数据库或 Sites 工具。`/api/health` 验证存活，页面“连接说明 → 重新检查连接”验证真实天气鉴权。
 
-本地开发可使用被忽略的 `.dev.vars` 或 `.env`；模板已安装的 Cloudflare Vite 插件支持这些来源。真实值不要提交，也不要将本地凭据文件放入部署包。
-
-## 本地运行与验证
+开发环境使用 Node.js >=22.13：
 
 ```sh
 npm ci
-npm run dev -- --host 127.0.0.1 --port 4173
+npm run dev -- --hostname 127.0.0.1 --port 4173
 npm test
 npm run typecheck
 npm run build
+npm run test:production
 ```
-
-需要 Node.js >=22.13；保留模板 `sites()` 与 Cloudflare 构建集成。Sites 发布必须使用插件的 build-site/site-workflow helper，不能把源码目录直接作为部署归档。
 
 ## 数据协议
 
@@ -58,17 +54,20 @@ npm run build
 
 ## 安全与性能
 
-私钥只在 Worker 导入；使用 Ed25519 JWT，包含官方当前规定的 kid、iss、sub、iat、exp，15分钟有效期并预留30秒时钟偏差。请求路径、参数、Host白名单固定，禁重定向，不接受任意URL。
+私钥只在 Node.js 服务端导入；使用 Ed25519 JWT，包含官方当前规定的 kid、iss、sub、iat、exp，15分钟有效期并预留30秒时钟偏差。请求路径、参数、Host白名单固定，禁重定向，不接受任意URL。
 
-天气缓存为每个 Worker isolate 内最多256条，实时5分钟、预报30分钟；6小时内同地点同范围缓存可在失败时标记为旧数据返回。浏览器仅当前会话保留最多30条真实天气响应以支持网络失败回退。GeoAPI只合并进行中的请求，不建立响应缓存。官方可下载CSV用于地区选择，不以批量Geo查询建立目录。
+天气缓存为每个 Node.js 进程内最多256条，实时5分钟、预报30分钟；6小时内同地点同范围缓存可在失败时标记为旧数据返回。浏览器仅当前会话保留最多30条真实天气响应以支持网络失败回退。GeoAPI只合并进行中的请求，不建立响应缓存。官方可下载CSV用于地区选择，不以批量Geo查询建立目录。
 
-同地点请求合并；城市切换取消请求并检查取消状态。服务端每个访问标识每分钟60次的内存限流与错误冷却会在 Worker 重启时重置；这不是跨地区强一致的配额系统。本次保留原天气站点的公开访问范围；GitHub 仓库为私密。大量访客场景需另行配置平台级访问和额度限制。
+同地点请求合并；城市切换取消请求并检查取消状态。服务端每个访问标识每分钟60次的内存限流与错误冷却会在 Node.js 进程重启时重置；这不是跨地区强一致的配额系统。自托管站点默认公开访问，GitHub 仓库为私密。大量访客或多副本场景需另行配置共享限流和额度限制。
 
 ## 日历来源与验证
 
 保留原日历 1901—2100 年的 73,049 天独立官方回归样本，以及 2007—2026 年休班资料。来源与许可见 `docs/calendar-sources.md`。`npm test` 同时运行日历全量回归、天气服务测试和日期联动测试。
 
 ## 核心文件
+
+- `Dockerfile`、`compose.yaml`、`deploy/nginx.conf`：服务器构建、启动和入口代理。
+- `next.config.ts`、`lib/weather-service.ts`：Node.js 运行方式和服务端环境变量接入。
 
 - `components/calendar-view.tsx`、`components/date-weather.tsx`：月历、键盘交互与指定日期天气。
 - `lib/calendar/calendar.mjs`、`public/calendar/data.json`：原日历核心算法与官方数据。

@@ -1,6 +1,4 @@
-import { env } from 'cloudflare:workers';
-import { type WeatherEnv } from './qweather-server';
 import { createWeatherRuntime, resolveWeatherEnvironment } from './weather-runtime';
-// Worker环境绑定不会被导入任何客户端组件。
-export const weatherService=createWeatherRuntime(()=>resolveWeatherEnvironment(env as unknown as WeatherEnv));
+// 仅由服务端 API 路由导入；密钥在容器启动后读取，不写入前端或构建配置。
+export const weatherService=createWeatherRuntime(resolveWeatherEnvironment);
 export const weatherConfiguration=()=>weatherService.configuration();

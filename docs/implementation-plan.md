@@ -1,5 +1,7 @@
 # 晴序天气实施计划
 
+> 历史记录：以下为原 Sites 阶段的计划或验证结果。当前自托管部署请以 [deployment.md](deployment.md) 与 [self-hosting-verification.md](self-hosting-verification.md) 为准。
+
 用户已给出完整需求并授权直接实现；按 Sites 私有站点工作流推进，不再追加设计确认。
 
 1. API 与数据模型：核对 v1 current/daily/hourly、Geo v2 lookup、Ed25519 JWT（iss/sub/kid），集中单位/比例/时间/昼夜处理。先用 node:test 验证坐标、转换、缺失值、范围与认证签名，再实现。保留原始字段供高级视图。

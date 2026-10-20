@@ -1,14 +1,9 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { ApiError, createClient, configuration, runtimeFetch, type WeatherEnv } from './qweather-server.ts';
 
-// Always use the environment supplied to this request, including after a
-// deployment or credential update. Never put these values in a browser bundle.
-const environments = new AsyncLocalStorage<WeatherEnv>();
-export const withWeatherEnvironment = <T>(env:WeatherEnv, run:()=>T) => environments.run(env,run);
 const keys = ['QWEATHER_API_HOST','QWEATHER_KID','QWEATHER_ISS','QWEATHER_SUB','QWEATHER_PRIVATE_KEY'] as const;
-export function resolveWeatherEnvironment(fallback:WeatherEnv):WeatherEnv {
- const bound=environments.getStore()??fallback;
- return Object.fromEntries(keys.map(key=>[key,bound[key]?.trim()])) as WeatherEnv;
+/** 仅从 Node 进程提取天气配置；不会读取或返回其他服务端环境变量。 */
+export function resolveWeatherEnvironment():WeatherEnv {
+ return Object.fromEntries(keys.map(key=>[key,process.env[key]?.trim()])) as WeatherEnv;
 }
 
 export function createWeatherRuntime(readEnv:()=>WeatherEnv,fetcher:typeof fetch=runtimeFetch,clock=Date.now){
@@ -23,11 +18,10 @@ export function createWeatherRuntime(readEnv:()=>WeatherEnv,fetcher:typeof fetch
  }
  async function check(env:WeatherEnv){
   const config=configuration(env),checkedAt=new Date(clock()).toISOString();
-  if(!config.configured)return {...config,connection:{ok:false,code:'CONFIG_MISSING',message:'服务端尚未读取到全部配置。请确认变量已保存，并重新部署网站后再检查。',checkedAt}};
+  if(!config.configured)return {...config,connection:{ok:false,code:'CONFIG_MISSING',message:'服务端尚未读取到全部配置。请确认环境变量已保存，并重建应用容器或重启 Node 服务后再检查。',checkedAt}};
   const fresh=createClient(env,fetcher,clock);
   try{
-   // A fresh request verifies credentials and current-weather permissions;
-   // neither an old weather cache nor an authentication cooldown can hide it.
+   // 用全新请求验证当前凭据与权限，避免旧缓存或鉴权冷却掩盖配置变更。
    await fresh.get('/weather/v1/current/39.92/116.41?localTime=true&lang=zh');
    if(keys.every(key=>previous?.[key]===env[key]))client=fresh;
    return {...config,connection:{ok:true,code:'CONNECTED',message:'连接成功，已通过和风实时天气接口验证。',checkedAt}};

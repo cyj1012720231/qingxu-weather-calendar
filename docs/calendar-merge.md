@@ -1,5 +1,7 @@
 # 天气与日历合并
 
+> 历史记录：以下为原 Sites 阶段的计划或验证结果。当前自托管部署请以 [deployment.md](deployment.md) 与 [self-hosting-verification.md](self-hosting-verification.md) 为准。
+
 目标：在原天气站点切换天气与日历，选择日期后查询同一城市当天天气，再返回原日期。
 
 来源：天气远端提交 `4ef0cbe74eb6986b1458c4569528f4bd350ff955`；日历远端提交 `3e411cf1c9bf5de6c69055843bd5945e74f27679`。工作目录是新拉取的远端副本。
