@@ -3,5 +3,6 @@ export type DayInfo={date:string;year:number;month:number;day:number;weekday:num
 export const MIN:string,MAX:string;
 export function beijingToday(now?:Date):string;
 export function addDays(date:string,count:number):string;
+export function shiftMonth(date:string,offset:number):string;
 export function monthCells(year:number,month:number):(string|null)[];
 export function createCalendar(data:CalendarData):{day:(date:string)=>DayInfo};

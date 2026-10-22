@@ -1,9 +1,10 @@
 import { validLocation, type Location, type ApiResult } from './weather.ts';
 export class RequestError extends Error { code:string; constructor(message:string,code='NETWORK_ERROR'){super(message);this.code=code;} }
 const cache=new Map<string,ApiResult>();
-export async function request<T>(url:string,signal?:AbortSignal):Promise<T>{
+/** 手动刷新通过请求头重验证，缓存键保持不变，断网仍能回退同一查询。 */
+export async function request<T>(url:string,signal?:AbortSignal,refresh=false):Promise<T>{
  try{
-  const response=await fetch(url,{signal});const body=await response.json() as T & {error?:{message?:string;code?:string};data?:unknown};
+  const response=await fetch(url,{signal,...(refresh?{headers:{'Cache-Control':'no-cache'}}:{})});const body=await response.json() as T & {error?:{message?:string;code?:string};data?:unknown};
   if(!response.ok)throw new RequestError(body.error?.message??'请求失败，请稍后重试。',body.error?.code);
   if(url.startsWith('/api/weather?')&&body.data){if(cache.size>=30)cache.delete(cache.keys().next().value!);cache.set(url,body as unknown as ApiResult);}
   return body;
@@ -13,6 +14,18 @@ export async function request<T>(url:string,signal?:AbortSignal):Promise<T>{
   if(old&&Date.now()-Date.parse(old.fetchedAt)<21600000)return {...old,stale:true,cached:true,warning:'网络连接失败，正在显示之前获取的数据。'} as T;
   throw e instanceof RequestError?e:new RequestError('连接失败，请检查网络后重试。');
  }
+}
+export type WeatherSlot={key?:string;result?:ApiResult;loading:boolean;error?:string;code?:string};
+/** 同一查询刷新时保留内容；切换查询清空旧值，取消后的响应不能覆盖新选择。 */
+export async function loadWeather(key:string,load:()=>Promise<ApiResult>,signal:AbortSignal,update:(change:(old:WeatherSlot)=>WeatherSlot)=>void){
+ if(signal.aborted)return;
+ update(old=>({key,result:old.key===key?old.result:undefined,loading:true}));
+ try{const result=await load();if(!signal.aborted)update(()=>({key,result,loading:false}));}
+ catch(error){if(!signal.aborted){
+  const message=error instanceof Error?error.message:'天气加载失败，请重试。';
+  update(old=>({key,loading:false,error:message,code:error instanceof RequestError?error.code:undefined,
+   result:old.key===key&&old.result?{...old.result,cached:true,stale:true,warning:message}:undefined}));
+ }}
 }
 export function parseLocations(data:unknown):Location[]{
  if(!data||typeof data!=='object'||!('location' in data)||!Array.isArray(data.location))return [];

@@ -61,6 +61,18 @@ test('240小时和10天完整数据保留，不按旧字段解析',async()=>{
  const hourly=await client.get(api.weatherPath(new URLSearchParams('kind=hourly&lat=0&lon=0&hours=240')));assert.equal(hourly.data.hours?.length,240);assert.equal(hourly.data.hours?.[239].temperature?.value,23.9);
  const daily=await client.get(api.weatherPath(new URLSearchParams('kind=daily&lat=0&lon=0&days=10')));assert.equal(daily.data.days?.length,10);assert.equal(daily.data.days?.[9].nighttime?.humidity,.8);
 });
+test('手动刷新绕过有效缓存、合并并发请求，失败仍返回有时间标记的旧数据',async()=>{
+ let calls=0,fail=false,now=1800000000000;
+ const client=api.createClient(await testEnv(),async()=>{calls++;return fail?Response.json({error:{type:'unavailable'}},{status:503}):Response.json({temperature:{value:calls,unit:'°C'}});},()=>now);
+ await client.get(currentPath);
+ now+=1000;
+ const [fresh,duplicate]=await Promise.all([client.get(currentPath,true),client.get(currentPath,true)]);
+ assert.equal(fresh.data.temperature?.value,2);assert.equal(duplicate.data.temperature?.value,2);assert.equal(calls,2);
+ assert.equal((await client.get(currentPath)).data.temperature?.value,2);assert.equal(calls,2);
+ fail=true;now+=1000;
+ const old=await client.get(currentPath,true);
+ assert.equal(old.stale,true);assert.equal(old.fetchedAt,fresh.fetchedAt);assert.equal(old.data.temperature?.value,2);
+});
 test('GeoAPI只合并进行中的请求，不存储结果缓存',async()=>{
  let calls=0;const client=api.createClient(await testEnv(),async()=>{calls++;return Response.json({code:'200',location:[]});});
  await client.get('/geo/v2/city/lookup?location=beijing&number=20&lang=zh');await client.get('/geo/v2/city/lookup?location=beijing&number=20&lang=zh');assert.equal(calls,2);

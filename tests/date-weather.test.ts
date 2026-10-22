@@ -27,3 +27,26 @@ test('历史数值保留零和缺失，空字符串不产生假温度，来源�
  assert.deepEqual(result.metadata?.attributions,['QWeather','license']);
  assert.throws(()=>dateWeather.normalizeHistory({weatherDaily:null}));
 });
+
+test('日期条覆盖本地历史及预报窗口，跨月与夏令时不丢日期',()=>{
+ const dates=dateWeather.weatherDates('2026-11-01','America/New_York','2026-11-01T05:00:00Z');
+ assert.equal(dates.length,20);assert.equal(dates[0],'2026-10-22');assert.equal(dates.at(-1),'2026-11-10');
+ assert.equal(new Set(dates).size,20);
+ assert.ok(dateWeather.weatherDates('2028-02-29','Asia/Shanghai',now).includes('2028-02-29'));
+});
+
+test('逐小时数据按城市日期筛选排序，历史当地时间不受电脑时区影响',()=>{
+ const hours=[{forecastTime:'2026-10-22T00:00:00+08:00'},{forecastTime:'2026-10-21T15:00:00Z'},{forecastTime:'2026-10-21T02:00:00+08:00'},{forecastTime:'invalid'}];
+ assert.deepEqual(dateWeather.hoursForDate(hours,'2026-10-21','Asia/Shanghai'),[hours[2],hours[1]]);
+ const historic=dateWeather.normalizeHistory({weatherDaily:{date:'2026-10-19'},weatherHourly:[{time:'2026-10-19 00:00',temp:'0',precip:'0'},{time:'2026-10-19 01:00',temp:''}]});
+ assert.equal(historic.hours?.length,2);
+ assert.equal(dateWeather.hoursForDate(historic.hours??[],'2026-10-19','America/Los_Angeles').length,2);
+ assert.equal(dateWeather.weatherHourTime(historic.hours![0],'America/Los_Angeles'),'00:00');
+ assert.deepEqual(historic.hours?.[0].temperature,{value:0,unit:'°C'});
+ assert.equal(historic.hours?.[1].temperature,undefined);
+ assert.equal(historic.hours?.[0].precipitation?.probability,undefined);
+ const zoned=dateWeather.normalizeHistory({weatherDaily:{date:'2026-10-20'},weatherHourly:[{time:'2026-10-20T00:00+08:00',temp:'12',precip:'0.0'},{time:'invalid',temp:'99'}]});
+ assert.equal(zoned.hours?.length,1);
+ assert.equal(dateWeather.hoursForDate(zoned.hours??[],'2026-10-20','Asia/Shanghai').length,1);
+ assert.equal(dateWeather.weatherHourTime(zoned.hours![0],'Asia/Shanghai'),'00:00');
+});

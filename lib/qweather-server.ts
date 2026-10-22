@@ -119,10 +119,11 @@ export function createClient(env:WeatherEnv,fetcher:typeof fetch=runtimeFetch,cl
    throw error;
   }
  }
- return {async get(path:string):Promise<ApiResult>{
+ return {async get(path:string,refresh=false):Promise<ApiResult>{
   if(!configuration(env).configured)throw new ApiError('CONFIG_MISSING','天气服务尚未连接，请先完成服务端配置。',503);
   if(!/^\/(weather\/v1\/(current|daily|hourly)\/-?[\d.]+\/-?[\d.]+|geo\/v2\/city\/lookup|v7\/historical\/weather)\?/.test(path))throw invalid();
-  const entry=cache.get(path);if(entry&&entry.expires>clock())return {...entry.result,cached:true};
+  // 手动刷新跳过有效缓存，但仍共用并发合并、错误冷却与失败回退。
+  const entry=cache.get(path);if(!refresh&&entry&&entry.expires>clock())return {...entry.result,cached:true};
   if(pending.has(path))return pending.get(path)!;
   const promise=load(path,entry).finally(()=>pending.delete(path));pending.set(path,promise);return promise;
  }};

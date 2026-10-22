@@ -31,7 +31,7 @@ export function createWeatherRuntime(readEnv:()=>WeatherEnv,fetcher:typeof fetch
  }
  return {
   configuration:()=>configuration(readEnv()),
-  get:(path:string)=>current().client.get(path),
+  get:(path:string,refresh=false)=>current().client.get(path,refresh),
   check:()=>{const {env}=current();if(!probe||clock()-probeAt>=15000){probeAt=clock();probe=check({...env});}return probe;},
  };
 }

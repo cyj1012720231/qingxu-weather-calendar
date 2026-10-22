@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
-const { createCalendar, beijingToday, monthCells } = await import('../lib/calendar/calendar.mjs');
+const { createCalendar, beijingToday, monthCells, shiftMonth } = await import('../lib/calendar/calendar.mjs');
+
+test('连续月历跨年、月末和历表边界跳转不丢失有效日期', () => {
+  assert.equal(typeof shiftMonth, 'function');
+  assert.equal(shiftMonth('2026-12-21', 1), '2027-01-21');
+  assert.equal(shiftMonth('2026-01-21', -1), '2025-12-21');
+  assert.equal(shiftMonth('2026-01-31', 1), '2026-02-28');
+  assert.equal(shiftMonth('2024-03-31', -1), '2024-02-29');
+  assert.equal(shiftMonth('1901-01-01', -3), '1901-01-01');
+  assert.equal(shiftMonth('2100-12-31', 3), '2100-12-31');
+});
 
 test('提供可验证的日历接口', () => assert.equal(typeof createCalendar, 'function'));
 if (createCalendar) {
