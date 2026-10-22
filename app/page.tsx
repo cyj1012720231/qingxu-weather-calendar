@@ -11,6 +11,7 @@ import { PullToRefresh } from '../components/pull-to-refresh';
 import { WeatherSelect } from '../components/weather-select';
 import { Input } from '../components/ui/input';
 import { Switch } from '../components/ui/switch';
+import { toast as showToast } from 'sonner';
 import { beijingToday } from '../lib/calendar/calendar.mjs';
 
 const emptySlot:Slot={loading:false};
@@ -20,7 +21,7 @@ const storageKey='qingxu.weather.v1';
 
 export default function WeatherApp(){
  const [prefs,setPrefs]=useState<Preferences>(defaultPreferences),[cities,setCities]=useState<Location[]>([]),[place,setPlace]=useState<Location|null>(null),[located,setLocated]=useState<Location|null>(null),[ready,setReady]=useState(false);
- const [dialog,setDialog]=useState<Dialog>(null),[view,setView]=useState<'weather'|'details'|'calendar'>('calendar'),[toast,setToast]=useState(''),[locating,setLocating]=useState(false),[offline,setOffline]=useState(false),[configured,setConfigured]=useState<boolean|null>(null),[missing,setMissing]=useState<string[]>([]),[statusError,setStatusError]=useState('');
+ const [dialog,setDialog]=useState<Dialog>(null),[view,setView]=useState<'weather'|'details'|'calendar'>('calendar'),[locating,setLocating]=useState(false),[offline,setOffline]=useState(false),[configured,setConfigured]=useState<boolean|null>(null),[missing,setMissing]=useState<string[]>([]),[statusError,setStatusError]=useState('');
  const [current,setCurrent]=useState<Slot>(emptySlot),[daily,setDaily]=useState<Slot>(emptySlot),[hourly,setHourly]=useState<Slot>(emptySlot),[revision,setRevision]=useState(0),[now,setNow]=useState(''),[detail,setDetail]=useState<string|null>(null),[cityWeather,setCityWeather]=useState<Record<string,ApiResult>>({});
  const [checking,setChecking]=useState(false),[connection,setConnection]=useState<ConnectionCheck|null>(null);
  const [refreshPending,setRefreshPending]=useState(false),[detailLoading,setDetailLoading]=useState(false);
@@ -34,7 +35,8 @@ export default function WeatherApp(){
  const statusSequence=useRef(0),connectionFeedback=useRef<HTMLDivElement>(null);
  useEffect(()=>{if(dialog==='connection'&&!checking&&(connection||statusError))connectionFeedback.current?.scrollIntoView({block:'nearest'});},[dialog,checking,connection,statusError]);
  const selection=useRef(0),autoStarted=useRef(false),persistenceWarned=useRef(false);
- const notify=useCallback((message:string)=>setToast(message),[]);
+ // 固定 ID 更新单条提示，连续反馈不堆叠，也不重复启动入场动画。
+ const notify=useCallback((message:string)=>{showToast.info(message,{id:'weather-feedback'});},[]);
  const choose=useCallback((location:Location)=>{selection.current++;setLocating(false);setPlace(location);setDialog(null);setView(v=>v==='details'?'weather':v);},[]);
  const locate=useCallback(async()=>{
   const seq=++selection.current;setLocating(true);
@@ -76,7 +78,6 @@ export default function WeatherApp(){
  },[checkConnection,notify]);
  useEffect(()=>{if(!ready)return;try{localStorage.setItem(storageKey,JSON.stringify({prefs,cities,place,located}));}catch{if(!persistenceWarned.current){persistenceWarned.current=true;notify('浏览器无法保存设置，本次会话仍可正常使用。');}}},[ready,prefs,cities,place,located,notify]);
  useEffect(()=>{if(weatherActive&&ready&&prefs.autoLocate&&configured===true&&!autoStarted.current){autoStarted.current=true;void locate();}},[weatherActive,ready,prefs.autoLocate,configured,locate]);
- useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(''),6500);return()=>clearTimeout(timer);},[toast]);
  useEffect(()=>{const force=lastWeatherRevision.current!==revision;lastWeatherRevision.current=revision;
   // 日历不加载天气；日期天气由对应页面单独查询，离开概览时取消在途请求。
   if(!overviewVisible){setRefreshPending(false);refreshGuard.current=false;return;}
@@ -105,6 +106,8 @@ export default function WeatherApp(){
  const message=!place?'请先选择城市':configured===false?'天气服务尚未连接':statusError||'暂无可用天气数据';
  const fullCurrentError=current.error;
  return <div className={`weather-app ${view==='calendar'?'is-calendar':''} ambient-${ambient} theme-${theme} ${night===true?'is-night':''} ${animate?'with-motion':'no-motion'}`}>
+  {/* 主题色随应用外观更新；手机日历的根背景使用同一底色，供浏览器取色。 */}
+  <meta name="theme-color" content={theme==='dark'?'#203c5d':'#4c7ea5'}/>
   <div className="sky-background" aria-hidden="true"><div className="sky-glow"/>{kind==='cloudy'&&<><div className="sky-cloud cloud-one"/><div className="sky-cloud cloud-two"/></>}{night===true&&<div className="stars"/>}{['rain','storm','snow'].includes(kind)&&<div className={`particles ${kind}`}>{Array.from({length:lowPower?10:24},(_,i)=><i key={i} style={{'--i':i} as CSSProperties}/>)}</div>}</div>
   <a href="#main" className="skip-link">跳到主要内容</a>
   <aside className="sidebar">
@@ -141,7 +144,6 @@ export default function WeatherApp(){
   <button className="floating-view-button" type="button" aria-label={weatherActive?'切换到日历':'切换到天气'} title={weatherActive?'切换到日历':'切换到天气'} onClick={()=>{setView(weatherActive?'calendar':'weather');window.scrollTo({top:0});}}>
    {weatherActive?<CalendarDays size={26} strokeWidth={1.8}/>:<Sun size={26} strokeWidth={1.8}/>}
   </button>
-  {toast&&<div className="toast" role="status"><Info size={17}/><span>{toast}</span><button aria-label="关闭提示" onClick={()=>setToast('')}><X size={16}/></button></div>}
   {dialog==='search'&&<SearchDialog onClose={()=>setDialog(null)} onChoose={choose} locate={locate} locating={locating} configured={configured}/>}
   {dialog==='settings'&&<Modal title="偏好设置" subtitle="偏好会自动保存在当前浏览器" onClose={()=>setDialog(null)}><div className="settings-list"><SettingRow label="温度单位"><div className="segmented">{(['C','F'] as const).map(u=><button key={u} onClick={()=>setPrefs({...prefs,temperature:u})} className={prefs.temperature===u?'active':''} aria-pressed={prefs.temperature===u}>°{u}</button>)}</div></SettingRow><SettingRow label="风速单位"><WeatherSelect label="风速单位" value={prefs.wind} onChange={value=>setPrefs({...prefs,wind:value as Preferences['wind']})} options={[{value:"km/h",label:"千米 / 小时"},{value:"m/s",label:"米 / 秒"},{value:"mph",label:"英里 / 小时"}]}/></SettingRow><SettingRow label="外观" note="自动模式跟随目标城市昼夜"><WeatherSelect label="外观" value={prefs.theme} onChange={value=>setPrefs({...prefs,theme:value as Preferences['theme']})} options={[{value:"auto",label:"自动"},{value:"light",label:"浅色"},{value:"dark",label:"深色"}]}/></SettingRow><SettingRow label="天气动态效果" note="始终尊重系统“减少动态效果”设置"><Switch className="weather-switch" aria-label="天气动态效果" checked={prefs.animation} onCheckedChange={animation=>setPrefs({...prefs,animation})}/></SettingRow><SettingRow label="进入时自动定位" note="需要浏览器允许位置权限"><Switch className="weather-switch" aria-label="进入时自动定位" checked={prefs.autoLocate} onCheckedChange={autoLocate=>setPrefs({...prefs,autoLocate})}/></SettingRow><button className="settings-link" onClick={()=>setDialog('cities')}><MapPin size={18}/>管理常用城市<ChevronRight size={17}/></button></div></Modal>}
   {dialog==='cities'&&<Modal title="常用城市" subtitle="收藏与排序保存在本机" onClose={()=>setDialog(null)}><div className="city-management"><button className="location-tile" onClick={()=>void locate()} disabled={locating}><Navigation size={20}/><span>{locating?'正在定位…':'更新当前位置'}</span><ChevronRight size={16}/></button>{cities.length?cities.map((city,i)=><div className="manage-city" key={city.id}><button className="manage-city-select" onClick={()=>choose(city)}><b>{city.name}</b><small>{locationLabel(city)}</small></button><span className="manage-temp">{tempText(cityWeather[city.id]?.data.temperature,prefs)}{cityWeather[city.id]?.stale&&<small>缓存</small>}</span><button className="icon-button small" onClick={()=>moveCity(i,-1)} disabled={i===0} aria-label={`上移${city.name}`}><ArrowUp size={16}/></button><button className="icon-button small" onClick={()=>moveCity(i,1)} disabled={i===cities.length-1} aria-label={`下移${city.name}`}><ArrowDown size={16}/></button><button className="icon-button small" aria-label={`删除${city.name}`} onClick={()=>setCities(v=>v.filter(c=>c.id!==city.id))}><Trash2 size={16}/></button></div>):<Empty message="还没有收藏的城市。选择地点后，点击城市旁的星标收藏。"/>}<button className="primary-button full-width" onClick={()=>setDialog('search')}><Plus size={17}/>添加城市</button></div></Modal>}

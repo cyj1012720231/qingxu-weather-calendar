@@ -27,6 +27,14 @@ export function hoursForDate(hours:WeatherPoint[],date:string,tz:string){
  return hours.filter(hour=>(civilTime.test(hour.forecastTime??'')?hour.forecastTime!.slice(0,10):localDate(hour.forecastTime,tz))===date).sort((a,b)=>weatherHourTime(a,tz).localeCompare(weatherHourTime(b,tz)));
 }
 
+/** 旧预报不冒充实况；没有取得的早间时段明确保留为空缺。 */
+export function pastHoursNote(hours:WeatherPoint[],hasPast:boolean,date:string,tz:string,now:string){
+ if(date!==localDate(now,tz))return undefined;
+ const first=hours[0]&&weatherHourTime(hours[0],tz);
+ const missing=first&&first!=='00:00'?`00:00–${first} 暂无已保存预报。`:'';
+ return [hasPast?'过去时段为此前预报，非历史实况。':'',missing].filter(Boolean).join('')||undefined;
+}
+
 /** 历史接口使用字符串和百分数，转换到现有展示结构时保留缺失值。 */
 export function normalizeHistory(body:Record<string,unknown>):WeatherPoint{
  const day=body.weatherDaily as Record<string,unknown>|undefined;

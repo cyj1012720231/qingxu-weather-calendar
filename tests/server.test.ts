@@ -107,3 +107,20 @@ test('历史接口转换每日数据并拒绝错日期，不影响预报权限',
  await assert.rejects(forbidden.get(path),{code:'FORBIDDEN'});
  assert.equal((await forbidden.get(currentPath)).data.temperature?.value,10);
 });
+
+test('逐小时刷新保留过去预报，跨范围复用且不污染未来列表或其他城市',async()=>{
+ let now=Date.parse('2026-10-22T00:00:00+08:00'),batch=0;
+ const point=(hour:number,value:number)=>({forecastTime:`2026-10-22T${String(hour).padStart(2,'0')}:00:00+08:00`,temperature:{value,unit:'°C'},precipitation:{probability:0}});
+ const client=api.createClient(await testEnv(),async()=>Response.json({hours:batch===0?[point(0,0),point(1,2),point(15,9)]:[point(15,17),point(16,16)],metadata:{attributions:['QWeather']}}),()=>now);
+ const path='/weather/v1/hourly/39.92/116.42?localTime=true&lang=zh&hours=240';
+ const first=await client.get(path);assert.deepEqual(first.data.pastHours??[],[]);
+ batch=1;now+=15*3600000;
+ const result=await client.get(path.replace('hours=240','hours=24'));
+ assert.deepEqual(result.data.hours?.map(h=>h.temperature?.value),[17,16]);
+ assert.deepEqual(result.data.pastHours?.map(h=>h.temperature?.value),[0,2]);
+ assert.equal(result.data.pastHours?.[0].precipitation?.probability,0);
+ const other=await client.get(path.replace('39.92','31.23'));
+ assert.deepEqual(other.data.pastHours??[],[]);
+ now+=49*3600000;
+ assert.deepEqual((await client.get(path,true)).data.pastHours??[],[]);
+});

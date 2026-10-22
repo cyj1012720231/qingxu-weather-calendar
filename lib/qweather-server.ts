@@ -94,6 +94,19 @@ export function createClient(env:WeatherEnv,fetcher:typeof fetch=runtimeFetch,cl
    if(path.startsWith('/geo/')&&!Array.isArray(body.location))throw new ApiError('NO_DATA','没有找到匹配的地点。',404);
    // 历史产品独立转换，不能让旧版字段影响当前天气和预报解析。
    let data:WeatherPoint=body;
+   if(path.startsWith('/weather/v1/hourly/')&&body.hours?.length){
+    // 预报刷新会丢掉过去小时；复用同坐标、各预报范围的真实旧预报，未来列表保持原样。
+    const first=Math.min(...body.hours.map(hour=>Date.parse(hour.forecastTime??'')).filter(Number.isFinite));
+    const past=new Map<number,WeatherPoint>(),sources=new Set(body.metadata?.attributions??[]);
+    for(const [key,entry] of [...cache].sort((a,b)=>Date.parse(a[1].result.fetchedAt)-Date.parse(b[1].result.fetchedAt))){
+     if(key.split('?')[0]!==path.split('?')[0])continue;
+     for(const hour of [...entry.result.data.pastHours??[],...entry.result.data.hours??[]]){
+      const time=Date.parse(hour.forecastTime??'');
+      if(time>=now-48*3600000&&time<now&&time<first){past.set(time,hour);for(const source of entry.result.data.metadata?.attributions??[])sources.add(source);}
+     }
+    }
+    data={...body,pastHours:[...past].sort((a,b)=>a[0]-b[0]).map(([,hour])=>hour),metadata:{...body.metadata,attributions:[...sources]}};
+   }
    if(path.startsWith('/v7/historical/weather?')){
     try{data=normalizeHistory(body);if(data.date!==new URLSearchParams(path.split('?')[1]).get('date')?.replace(/^(\d{4})(\d{2})(\d{2})$/,'$1-$2-$3'))throw Error();}
     catch{throw new ApiError('INVALID_RESPONSE','历史天气响应日期或格式异常。',502);}

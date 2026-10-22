@@ -50,3 +50,13 @@ test('逐小时数据按城市日期筛选排序，历史当地时间不受电�
  assert.equal(dateWeather.hoursForDate(zoned.hours??[],'2026-10-20','Asia/Shanghai').length,1);
  assert.equal(dateWeather.weatherHourTime(zoned.hours![0],'Asia/Shanghai'),'00:00');
 });
+
+test('当天图表合并早先预报并保留城市日期、零值和缺失提示',()=>{
+ const past=[{forecastTime:'2026-10-22T00:00:00+08:00',temperature:{value:0,unit:'°C'},precipitation:{probability:0}}];
+ const future=[{forecastTime:'2026-10-22T15:00:00+08:00',temperature:{value:17,unit:'°C'}},{forecastTime:'2026-10-23T00:00:00+08:00'}];
+ const hours=dateWeather.hoursForDate([...past,...future],'2026-10-22','Asia/Shanghai');
+ assert.equal(hours.length,2);assert.equal(hours[0].temperature?.value,0);
+ assert.equal(dateWeather.pastHoursNote(hours,true,'2026-10-22','Asia/Shanghai','2026-10-22T07:00:00Z'),'过去时段为此前预报，非历史实况。');
+ assert.match(dateWeather.pastHoursNote(future,false,'2026-10-22','Asia/Shanghai','2026-10-22T07:00:00Z')??'',/暂无已保存预报/);
+ assert.equal(dateWeather.pastHoursNote(hours,true,'2026-10-22','America/Los_Angeles','2026-10-22T01:00:00Z'),undefined);
+});

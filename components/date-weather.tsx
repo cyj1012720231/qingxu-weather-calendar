@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, MapPin, RefreshCw } from 'lucide-react';
 import { type ApiResult, type Location, type Preferences, localDate, tempText } from '../lib/weather';
-import { weatherDateKind, forecastForDate, hoursForDate, weatherDates } from '../lib/date-weather';
+import { weatherDateKind, forecastForDate, hoursForDate, weatherDates, pastHoursNote } from '../lib/date-weather';
 import { createDateSwipe } from '../lib/gestures';
 import { lookup, request, weatherUrl, loadWeather, type WeatherSlot } from '../lib/weather-client';
 import { Attribution, DataFields, Empty, ForecastTrends, Freshness, Modal, WeatherIcon } from './weather-ui';
@@ -22,7 +22,10 @@ export function DateWeather({date,place,prefs,configured,now,revision,initialDai
  const result=eligible&&slot.key===queryKey?slot.result:undefined;
  const hourlyResult=eligible&&kind==='forecast'&&hourly.key===hourlyKey?hourly.result:undefined;
  const day=result?(kind==='history'?result.data:forecastForDate(result.data.days??[],date,tz)):undefined;
- const hours=hoursForDate(kind==='history'?day?.hours??[]:hourlyResult?.data.hours??[],date,tz);
+ const forecast=hourlyResult?.data;
+ const pastHours=hoursForDate(forecast?.pastHours??[],date,tz);
+ const hours=hoursForDate(kind==='history'?day?.hours??[]:[...pastHours,...forecast?.hours??[]],date,tz);
+ const pastNote=kind==='forecast'&&hourlyResult?pastHoursNote(hours,pastHours.length>0,date,tz,now):undefined;
  const loading=eligible&&(slot.key!==queryKey||slot.loading),hourlyLoading=eligible&&kind==='forecast'&&(hourly.key!==hourlyKey||hourly.loading);
  useEffect(()=>{onLoadingChange(loading||hourlyLoading);},[loading,hourlyLoading,onLoadingChange]);
  useEffect(()=>()=>onLoadingChange(false),[onLoadingChange]);
@@ -70,6 +73,6 @@ export function DateWeather({date,place,prefs,configured,now,revision,initialDai
   {day&&<div className="date-weather-summary"><p className="date-weather-temperatures"><strong aria-label={`最高 ${tempText(day.temperatureMax,prefs)}`}>{tempText(day.temperatureMax,prefs)}</strong><span aria-label={`最低 ${tempText(day.temperatureMin,prefs)}`}>{tempText(day.temperatureMin,prefs)}</span><small>°{prefs.temperature}</small></p><span className="date-weather-condition"><WeatherIcon code={day.daytime?.condition?.code??hours[0]?.condition?.code} size={26}/>{day.daytime?.condition?.text??(kind==='history'?'历史天气':'')}</span></div>}
  </header>
  <div ref={body} className="date-weather-body">
- {eligible?<><ForecastTrends hours={hours} prefs={prefs} tz={tz} date={date} day={day} loading={kind==='history'?loading:hourlyLoading} error={kind==='history'?slot.error:hourly.error} onRetry={retryLoad}/>{day?<DataFields data={{...day,temperatureMax:undefined,temperatureMin:undefined}} prefs={prefs} tz={tz} date={date}/>:<Empty loading={loading} message={message} onRetry={retryLoad}/>}<Freshness result={result} tz={tz}/><Freshness result={hourlyResult} tz={tz}/><Attribution results={[result,hourlyResult]}/></>:<><Empty message={message}/>{!place&&<button className="primary-button date-weather-action" onClick={onSearch}><MapPin size={17}/>选择城市</button>}{place&&configured!==true&&<button className="primary-button date-weather-action" onClick={onConnection}>检查天气连接</button>}</>}
+ {eligible?<><ForecastTrends hours={hours} prefs={prefs} tz={tz} date={date} day={day} pastNote={pastNote} loading={kind==='history'?loading:hourlyLoading} error={kind==='history'?slot.error:hourly.error} onRetry={retryLoad}/>{day?<DataFields data={{...day,temperatureMax:undefined,temperatureMin:undefined}} prefs={prefs} tz={tz} date={date}/>:<Empty loading={loading} message={message} onRetry={retryLoad}/>}<Freshness result={result} tz={tz}/><Freshness result={hourlyResult} tz={tz}/><Attribution results={[result,hourlyResult]}/></>:<><Empty message={message}/>{!place&&<button className="primary-button date-weather-action" onClick={onSearch}><MapPin size={17}/>选择城市</button>}{place&&configured!==true&&<button className="primary-button date-weather-action" onClick={onConnection}>检查天气连接</button>}</>}
  </div></div></Modal>;
 }

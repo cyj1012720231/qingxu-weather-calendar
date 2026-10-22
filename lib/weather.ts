@@ -10,7 +10,7 @@ export type WeatherPoint = {
   temperatureMax?: Measure; temperatureMin?: Measure; temperatureAvg?: Measure; uvIndexMax?: number;
   astro?: Record<string,string>; daytime?: WeatherPoint; nighttime?: WeatherPoint;
   metadata?: { tag?: string; attributions?: string[]; zeroResult?: boolean; [key:string]:unknown };
-  days?: WeatherPoint[]; hours?: WeatherPoint[]; [key:string]:unknown;
+  days?: WeatherPoint[]; hours?: WeatherPoint[]; pastHours?: WeatherPoint[]; [key:string]:unknown;
 };
 export type ApiResult<T = WeatherPoint> = { data:T; fetchedAt:string; cached:boolean; stale:boolean; warning?:string };
 export const defaultPreferences: Preferences = {temperature:'C',wind:'km/h',animation:true,autoLocate:false,theme:'auto'};

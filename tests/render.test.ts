@@ -19,6 +19,15 @@ const {default:WeatherApp}=await import(pathToFileURL(pageFile).href);
 const calendarOutput=await build({entryPoints:['components/calendar-view.tsx'],bundle:true,platform:'node',format:'esm',packages:'external',write:false,jsx:'automatic'});
 const calendarFile=path.join(testDir,'calendar.mjs');await writeFile(calendarFile,calendarOutput.outputFiles[0].text);
 const {CalendarView}=await import(pathToFileURL(calendarFile).href);
+const pullOutput=await build({entryPoints:['components/pull-to-refresh.tsx'],bundle:true,platform:'node',format:'esm',packages:'external',write:false,jsx:'automatic'});
+const pullFile=path.join(testDir,'pull.mjs');await writeFile(pullFile,pullOutput.outputFiles[0].text);
+const {PullToRefresh}=await import(pathToFileURL(pullFile).href);
+test('刷新提示保持稳定节点，空闲时隐藏，且不挤动页面内容',()=>{
+ const html=renderToStaticMarkup(createElement(PullToRefresh,{onRefresh:()=>{},refreshing:false,disabled:false,className:'surface'},createElement('p',null,'原有内容')));
+ assert.match(html,/<div[^>]+class="pull-refresh-indicator"[^>]+hidden=""/);
+ assert.ok(html.includes('原有内容'));
+ assert.ok(!html.includes('style="top:'));
+});
 test('首次打开停留在日历，仅提供前往天气的悬浮按钮',()=>{
  const html=renderToStaticMarkup(createElement(WeatherApp));
  assert.equal((html.match(/aria-label="切换到天气"/g)??[]).length,1);
@@ -26,6 +35,11 @@ test('首次打开停留在日历，仅提供前往天气的悬浮按钮',()=>{
  assert.ok(!html.includes('aria-label="当前天气"'));
  assert.ok(!html.includes('<h1>详细天气</h1>'));
  assert.ok(!html.includes('数据与连接'));
+});
+test('首屏提供与手机日历底色一致的单一浏览器主题色',()=>{
+ const html=renderToStaticMarkup(createElement(WeatherApp));
+ assert.equal((html.match(/name="theme-color"/g)??[]).length,1);
+ assert.match(html,/<meta name="theme-color" content="#4c7ea5"/);
 });
 test('正常天气不显示获取时间，过期数据仍明确提示缓存与失败原因',()=>{
  const result={data:{},fetchedAt:'2026-10-21T00:00:00Z',cached:false,stale:false};
@@ -127,4 +141,10 @@ test('逐小时详情在降水之后保留风速，日降水区分零概率和�
  assert.ok(html.includes('36 km/h'));
  const rain=renderToStaticMarkup(createElement(ui.DailyRainChart,{days:[{forecastStartTime:'2026-10-22T00:00:00+08:00',daytime:{precipitation:{probability:0}}}],tz:'Asia/Shanghai'}));
  for(const text of ['白天','夜间','0%','—'])assert.ok(rain.includes(text),text);
+});
+
+test('早间预报与最新预报都可点击查看温度和概率，并说明旧预报来源',()=>{
+ const hours=[{forecastTime:'2026-10-22T00:00:00+08:00',temperature:{value:0,unit:'°C'},precipitation:{probability:0}},{forecastTime:'2026-10-22T15:00:00+08:00',temperature:{value:17,unit:'°C'},precipitation:{probability:.4}}];
+ const html=renderToStaticMarkup(createElement(ui.ForecastTrends,{hours,prefs:defaultPreferences,tz:'Asia/Shanghai',date:'2026-10-22',pastNote:'过去时段为此前预报，非历史实况。'}));
+ for(const text of ['00:00 实际气温 0°','15:00 实际气温 17°','00:00 降水概率 0%','15:00 降水概率 40%','过去时段为此前预报'])assert.ok(html.includes(text),text);
 });
